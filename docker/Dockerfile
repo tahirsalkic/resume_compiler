@@ -1,26 +1,39 @@
 # Use an official Python runtime as a parent image
 FROM python:3.10
 
-# Install Firefox, wget, and additional dependencies for unoconv
+# Install necessary packages and dependencies
 RUN apt-get update && apt-get install -y \
-    firefox-esr \                     # Install Firefox Extended Support Release
-    wget \                            # Install wget utility for downloading files
-    dialog \                          # Install dialog utility (used for creating TUI dialogs)
-    libreoffice \                     # Install LibreOffice (required by unoconv)
-    unoconv \                         # Install unoconv for converting between document formats
-    apt-transport-https \             # Install package to allow 'apt' to use repositories accessed via HTTPS
+    # Install Firefox Extended Support Release
+    firefox-esr \
+    # Install wget utility for downloading files
+    wget \
+    # Install dialog utility for creating TUI dialogs
+    dialog \
+    # Install LibreOffice for document conversions
+    libreoffice \
+    # Install unoconv for document conversions
+    unoconv \
+    # Allow 'apt' to use repositories accessed via HTTPS
+    apt-transport-https \
     # Download and set up GeckoDriver for Selenium
     && wget https://github.com/mozilla/geckodriver/releases/download/v0.34.0/geckodriver-v0.34.0-linux64.tar.gz \
-    && tar -xvzf geckodriver* \       # Extract the downloaded tarball
-    && chmod +x geckodriver \         # Make GeckoDriver executable
-    && mv geckodriver /usr/local/bin/ \ # Move GeckoDriver to a directory in the PATH
-    && rm geckodriver-v0.34.0-linux64.tar.gz \ # Remove the tarball to clean up
+    # Extract the downloaded tarball
+    && tar -xvzf geckodriver-v0.34.0-linux64.tar.gz \
+    # Make GeckoDriver executable
+    && chmod +x geckodriver \
+    # Move GeckoDriver to a directory in the PATH
+    && mv geckodriver /usr/local/bin/ \
+    # Remove the tarball to clean up
+    && rm geckodriver-v0.34.0-linux64.tar.gz \
     # Add Debian contrib repository and install Microsoft TrueType core fonts
     && echo "deb http://deb.debian.org/debian/ bookworm contrib" | tee -a /etc/apt/sources.list.d/contrib.list \
     && apt-get update \
-    && apt-get install -y ttf-mscorefonts-installer \ # Install Microsoft TrueType core fonts
-    && apt-get clean \                # Clean up the local repository of retrieved package files
-    && rm -rf /var/lib/apt/lists/*    # Remove the lists of available packages to save space
+    # Install Microsoft TrueType core fonts
+    && apt-get install -y ttf-mscorefonts-installer \
+    # Clean up the local repository of retrieved package files
+    && apt-get clean \
+    # Remove the lists of available packages to save space
+    && rm -rf /var/lib/apt/lists/*
 
-# Create a Firefox profile to leverage cookies from local firefox
+# Create a Firefox profile for headless mode
 RUN firefox -headless -CreateProfile "root"
