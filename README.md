@@ -1,6 +1,22 @@
 # resume_compiler
 This project compiles your skills and career achievements, making it easier to tailor your resume for specific job postings and improving your chances in a competitive job market.
 
+## Commit Messages
+Start with commit category:
+Fix, Add, Remove, Refactor, Update
+
+Tag the commit with a type:
+feat: A new feature
+fix: A bug fix
+docs: Documentation only changes
+style: Changes that do not affect the meaning of the code (white-space, formatting, etc.)
+refactor: A code change that neither fixes a bug nor adds a feature
+perf: A code change that improves performance
+test: Adding missing tests or correcting existing tests
+
+Example:
+doc: Update README to include commit message style and project requirements
+
 ## Functional Requirements
 
 1. **Manage Firefox Bookmarks**
