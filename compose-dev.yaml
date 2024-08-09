@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  app:
+    build: ./docker
+    entrypoint:
+      - sleep
+      - infinity
+    image: docker/dev-environments-default:stable-1
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      - "C:\\Users\\User\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\672oc64n.default-release:/firefox_profile"
+      - "C:\\Users\\User\\Documents\\MEGA\\resumes:/mega_resumes"
+    ports:
+      - "5000:80"
+    depends_on:
+      - db
+    init: true
+      
+  db:
+    image: mongo:latest
+    volumes:
+      - db-data:/data/db
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: user
+      MONGO_INITDB_ROOT_PASSWORD: password
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - "8082:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: user
+      ME_CONFIG_MONGODB_ADMINPASSWORD: password
+      ME_CONFIG_MONGODB_SERVER: db
+    depends_on:
+      - db
+
+volumes:
+  db-data:
