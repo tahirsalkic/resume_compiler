@@ -35,5 +35,9 @@ RUN apt-get update && apt-get install -y \
     # Remove the lists of available packages to save space
     && rm -rf /var/lib/apt/lists/*
 
+# Configure Git with user information
+RUN git config --global user.name "Tahir Salkic" \
+    && git config --global user.email "tahirsalkic@gmail.com"
+
 # Create a Firefox profile for headless mode
 RUN firefox -headless -CreateProfile "root"

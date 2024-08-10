@@ -13,6 +13,7 @@ services:
         target: /var/run/docker.sock
       - "C:\\Users\\User\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\672oc64n.default-release:/firefox_profile"
       - "C:\\Users\\User\\Documents\\MEGA\\Tahir Salkic\\Employment\\Resumes\\Job Search:/job_search"
+      - "C:\\Users\\User\\Documents\\MEGA\\Tahir Salkic\\Dev\\.ssh:/root/.ssh"
     ports:
       - "5000:80"
     depends_on:
