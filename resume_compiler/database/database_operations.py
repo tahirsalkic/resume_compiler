@@ -28,7 +28,7 @@ def get_new_bookmarks(client: MongoClient, db_name: str, bookmarks_list: list) -
         logger.error(f"An error occurred while checking bookmarks: {e}")
         return []
 
-def insert_new_bookmarks(bookmarks_list: list) -> None:
+def collect_new_job_postings(bookmarks_list: list) -> None:
     """Insert new bookmarks into job_postings collection"""
     client = get_client()
     config = load_mongodb_config()
@@ -46,3 +46,59 @@ def insert_new_bookmarks(bookmarks_list: list) -> None:
         logger.error(f"An error occurred while inserting bookmarks: {e}")
     finally:
         client.close()
+
+def find_bookmarks_without_skills(client: MongoClient, db_name: str) -> list:
+    """Find bookmarks in job_postings collection without a skills field"""
+    collection = client[db_name]['job_postings']
+    try:
+        query_result = collection.find({"skills": {"$exists": False}}, {"url": 1})
+        bookmarks_without_skills = [doc['url'] for doc in query_result]
+        
+        logger.info(f"Found {len(bookmarks_without_skills)} bookmarks without skills field.")
+        return bookmarks_without_skills
+    except Exception as e:
+        logger.error(f"An error occurred while finding bookmarks without skills field: {e}")
+        return []
+    
+def propagate_skills_field(client: MongoClient, db_name: str) -> list:
+    """Propagate skills field across documents with matching company and role fields and return URLs of updated documents."""
+    collection = client[db_name]['job_postings']
+    propagated_urls = []
+    
+    try:
+        pipeline = [
+            {
+                "$group": {
+                    "_id": {"company": "$company", "role": "$role"},
+                    "docs": {"$push": "$$ROOT"},
+                    "skills_count": {"$sum": {"$cond": [{"$ifNull": ["$skills", False]}, 1, 0]}}
+                }
+            },
+            {"$match": {"skills_count": {"$gte": 1}}}
+        ]
+        
+        aggregated_docs = list(collection.aggregate(pipeline))
+        
+        for group in aggregated_docs:
+            skills_to_propagate = None
+            
+            for doc in group['docs']:
+                if 'skills' in doc:
+                    skills_to_propagate = doc['skills']
+                    break
+            
+            if skills_to_propagate:
+                for doc in group['docs']:
+                    if 'skills' not in doc:
+                        collection.update_one(
+                            {"_id": doc['_id']},
+                            {"$set": {"skills": skills_to_propagate}}
+                        )
+                        # Assuming each document has a 'url' field
+                        propagated_urls.append(doc['url'])
+        
+        logger.info("Skills field propagated across matching documents.")
+    except Exception as e:
+        logger.error(f"An error occurred while propagating skills field: {e}")
+    
+    return propagated_urls
