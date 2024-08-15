@@ -3,14 +3,11 @@ import os
 from pathlib import Path
 from sqlite3 import connect, Error
 
-from config.logging_config import setup_logging
 from config.settings import load_config
 from utils.helper_functions import copy_file
 
-# Setup logging
 logger = logging.getLogger(__name__)
 
-# Load and parse configuration
 config = load_config()
 folder_title = config.get('FIREFOX', 'folder_title')
 firefox_profile_path = config.get('FIREFOX', 'firefox_profile_path')
@@ -47,13 +44,11 @@ def setup_firefox():
         logger.error("Firefox profile not found.")
         return None
 
-    # Define paths
     places_src = Path(local_firefox_path) / 'places.sqlite'
     cookies_src = Path(local_firefox_path) / 'cookies.sqlite'
     places_dest = firefox_profile / 'places.sqlite'
     cookies_dest = firefox_profile / 'cookies.sqlite'
 
-    # Copy files, fail fast on any errors
     if not copy_file(places_src, places_dest, "Places file"):
         logger.error("Setup aborted due to failure in copying Places file.")
         return None
