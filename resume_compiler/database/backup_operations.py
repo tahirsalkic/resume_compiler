@@ -3,7 +3,7 @@ import logging
 import os
 from datetime import datetime
 from pymongo import MongoClient
-from utils.mongodb_utils import get_client, load_mongodb_config
+from database.db_helper_functions import get_client, load_mongodb_config
 
 # Set up logging
 logger = logging.getLogger(__name__)
