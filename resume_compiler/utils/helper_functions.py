@@ -1,5 +1,5 @@
 import logging
-import re
+from urllib.parse import urlparse
 from shutil import copyfile, SameFileError, SpecialFileError
 
 # Set up logging
@@ -25,16 +25,23 @@ def copy_file(src: str, dst: str, description: str) -> bool:
         logger.error(f"An unexpected error occurred while copying '{description}' from '{src}' to '{dst}': {e}")
     return False
 
-def clean_bookmarks(bookmarks: list) -> list:
-    """Return cleaned LinkedIn urls up to the view number."""
-    pattern = r"(https://www\.linkedin\.com/jobs/view/\d+)"
-    
-    cleaned_bookmarks = []
-    for bookmark in bookmarks:
-        match = re.match(pattern, bookmark)
-        if match:
-            cleaned_bookmarks.append(match.group(1))
+def get_job_id_from_url(url: str) -> str:
+    """Extracts the job ID from a given LinkedIn job URL."""
+    parsed_url = urlparse(url)
+    path_parts = parsed_url.path.split('/')
+
+    try:
+        if 'jobs-guest' in path_parts:
+            job_id = path_parts[path_parts.index('jobPosting') + 1]
+        elif 'view' in path_parts:
+            job_id = path_parts[path_parts.index('view') + 1]
         else:
-            cleaned_bookmarks.append(bookmark)
+            return None
+        return job_id
+    except (ValueError, IndexError):
+        return None
     
-    return cleaned_bookmarks
+def ids_to_urls(ids):
+    """Returns a list of LinkedIn job URLs give a list of ids."""
+    base_url = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/"
+    return [f"{base_url}{id}" for id in ids]
