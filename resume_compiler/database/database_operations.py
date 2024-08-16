@@ -112,3 +112,37 @@ def propagate_skills_field_across_docs(client: MongoClient, db_name: str) -> lis
         logger.error(f"An error occurred while propagating the skills field: {e}")
     
     return updated_propagated_job_ids
+
+def get_documents(collection_name: str, criteria: dict, fields: list) -> list:
+    """Query job_postings collection based on specific criteria."""
+    client = get_client()
+    config = load_mongodb_config()
+    db_name = config['database']
+    collection = client[db_name][collection_name]
+    
+    projection = {field: 1 for field in fields}
+    results_cursor = collection.find(criteria, projection)
+    
+    job_listings = []
+    for document in results_cursor:
+        job_listings.append(document)
+    
+    client.close()
+    
+    return job_listings
+
+def update_field(collection_name, search_field, search_value, update_field, new_value):
+    """Update a field in a MongoDB document where a specified field matches a value."""
+    client = get_client()
+    try:
+        config = load_mongodb_config()
+        db_name = config['database']
+        collection = client[db_name][collection_name]
+
+        query = {search_field: search_value}
+        update = {"$set": {update_field: new_value}}
+
+        collection.update_one(query, update)
+
+    finally:
+        client.close()

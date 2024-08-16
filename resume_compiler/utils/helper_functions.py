@@ -1,8 +1,8 @@
 import logging
 from urllib.parse import urlparse
 from shutil import copyfile, SameFileError, SpecialFileError
+from PIL import ImageFont, ImageDraw, Image
 
-# Set up logging
 logger = logging.getLogger(__name__)
 
 def copy_file(src: str, dst: str, description: str) -> bool:
@@ -45,3 +45,32 @@ def ids_to_urls(ids):
     """Returns a list of LinkedIn job URLs give a list of ids."""
     base_url = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/"
     return [f"{base_url}{id}" for id in ids]
+
+def line_fit(text, line, font_name='arial', font_size=10):
+    try:
+        font = ImageFont.truetype(f"{font_name}.ttf", font_size)
+    except IOError:
+        logger.error(f"Font '{font_name}' not found.")
+        return None
+
+    dummy_image = Image.new('RGB', (1000, 1000), color='white')
+    draw = ImageDraw.Draw(dummy_image)
+
+    bbox = draw.textbbox((0, 0), text, font=font)
+    bbox_meter = draw.textbbox((0, 0), line, font=font)
+    width = bbox[2] - bbox[0]
+    meter = bbox_meter[2] - bbox_meter[0]
+
+    if width <= meter:
+        return True
+    
+    return False
+
+def process_string(s):
+    letters_only = ''.join(filter(str.isalpha, s))
+    if letters_only.isupper() and ' ' not in s:
+        pass
+    else:
+        s = s.title()
+        
+    return s.strip()
