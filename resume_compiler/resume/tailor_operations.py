@@ -1,7 +1,7 @@
 from ai.openai_operations import create_chat_completion, skills_analysis
 from config.settings import load_config
 from database.database_operations import get_documents, insert_skill, update_field
-from utils.helper_functions import line_fit, process_string
+from utils.helper_functions import line_fit
 
 config = load_config()
 robo_tailor = eval(config["DEFAULT"]["ROBO_TAILOR"])
@@ -26,45 +26,61 @@ def tailor_skills(job_ids: list) -> dict:
         print("Error during skills analysis:", e)
         raise
 
+def get_user_confirmation(skill):
+    user_input = input(f"Do you have the '{skill}' skills? (yes/no): ").strip().lower()
+    while user_input not in ['yes', 'no']:
+        user_input = input("Please answer with 'yes' or 'no': ").strip().lower()
+    return user_input == 'yes'
+
+def get_replacement_skill(skill):
+    replacement_skills = create_chat_completion("replacement_skill", skill, temperature=0.7)
+    print(replacement_skills)
+    return input("Input a replacement skill: ").strip()
+
+def ensure_skill_fits_length(skill):
+    while not line_fit(skill, '<skill>lllllllllllllllllllllllllllllllllllllllll'):
+        shorter_skills = create_chat_completion("shorter_skill", skill, temperature=0.7)
+        print(shorter_skills)
+        skill = input(f"'{skill}' skill is too long. Enter shorter skill: ").strip()
+    return skill
+
+def verify_single_skill(skill):
+    while not get_user_confirmation(skill):
+        skill = get_replacement_skill(skill)
+    skill = ensure_skill_fits_length(skill)
+    insert_skill(skill)
+    return skill
+
 def verify_skills(job_skills):
     for job_id, skills in job_skills.items():
-        skills = skills.split("^_^")
-        verified_skills = []
-        for skill in skills:
-            skill = process_string(skill)
-            user_input = input(f"Do you have the '{skill}' skills? (yes/no): ").strip().lower()
-            while user_input != 'yes':
-                replacement_skills = create_chat_completion("replacement_skill", skill, temperature=0.7)
-                print(replacement_skills)
-                skill = input("Input a replacement skill: ").strip()
-                skill = process_string(skill)
-                user_input = input(f"Do you have the '{skill}' skills? (yes/no): ").strip().lower()
-            while not line_fit(skill, '<skill>lllllllllllllllllllllllllllllllllllllllll'):
-                shorter_skills = create_chat_completion("shorter_skill", skill, temperature=0.7)
-                print(shorter_skills)
-                skill = input(f"'{skill}' skill is too long. Enter shorter skill: ")
-                skill = process_string(skill)
-                user_input = input(f"Do you have the '{skill}' skills? (yes/no): ").strip().lower()
-            insert_skill(skill)
-            verified_skills.append(skill)
-
-        verified_skills = '^_^'.join(verified_skills)
-        update_field("job_postings", "job_id", job_id, "skills", verified_skills)
+        skills_list = skills.split("^_^")
+        verified_skills = [verify_single_skill(skill) for skill in skills_list]
+        verified_skills_str = '^_^'.join(verified_skills)
+        update_field("job_postings", "job_id", job_id, "skills", verified_skills_str)
 
 def collect_skills(job_skills):
-    for job_id, skills in job_skills.items():
-        skills = skills.split("^_^")
-        criteria = {}
-        fields = ["skill"]
-        collection = get_documents('bullet_points', criteria, fields)
-        skill_collection = [doc["skill"] for doc in collection if "skill" in doc]
-        missing_skills = [skill for skill in job_skills if skill not in skill_collection]
-        skill_collection = [skill for skill in skill_collection if skill not in missing_skills]
-        prompt = f"Inputted list: {'^_^'.join(missing_skills)}" + "\n" + f"Skill collection: {'^_^'.join(skill_collection)}"
-        replacement_skills = create_chat_completion("collect_skills", prompt, temperature=0.4)
-        replacement_skills = replacement_skills.split("^_^")
-        for i, skill in enumerate(missing_skills):
-                index = job_skills.index(skill)
-                job_skills[index] = replacement_skills[i]
-        updated_job_skills = "^_^".join(job_skills)
-        update_field("job_postings", "job_id", job_id, "skills", updated_job_skills)
+    fields = ["skill"]
+    skill_collection = {
+        doc["skill"]
+        for doc in get_documents('bullet_points', {}, fields)
+        if "skill" in doc
+    }
+
+    for job_id, skills_str in job_skills.items():
+        skills = skills_str.split("^_^")
+        missing_skills = [skill for skill in skills if skill not in skill_collection]
+
+        if missing_skills:
+            prompt = (
+                f"Inputted list: {'^_^'.join(missing_skills)}\n"
+                f"Skill collection: {'^_^'.join(skill_collection)}"
+            )
+            replacement_skills = create_chat_completion("collect_skills", prompt, temperature=0.4)
+            replacement_skills_list = replacement_skills.split("^_^")
+
+            for i, skill in enumerate(missing_skills):
+                index = skills.index(skill)
+                skills[index] = replacement_skills_list[i]
+            
+            updated_job_skills = "^_^".join(skills)
+            update_field("job_postings", "job_id", job_id, "skills", updated_job_skills)
