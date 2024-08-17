@@ -172,8 +172,9 @@ def insert_skill(skill: str):
     collection = client[db_name]['bullet_points']
 
     try:
-        if collection.count_documents({'skill': skill}) == 0:
-            collection.insert_one({'skill': skill, 'bullets': []})
+        s = skill.lower()
+        if collection.count_documents({'skill': s}) == 0:
+            collection.insert_one({'skill': s, 'bullets': []})
     
     except Exception as e:
         print(f"An error occurred: {e}")
