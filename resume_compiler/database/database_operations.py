@@ -71,10 +71,12 @@ def find_documents_missing_field(collection_name: str, field_name: str) -> list:
     finally:
         client.close()
     
-def propagate_skills_field_across_docs(client: MongoClient, db_name: str) -> list:
+def propagate_skills_field_across_docs():
     """Propagate the skills field across documents with matching company and role, and return IDs of updated documents."""
-    job_postings_collection = client[db_name]['job_postings']
-    updated_propagated_job_ids = []
+    client = get_client()
+    config = load_mongodb_config()
+    db_name = config['database']
+    collection = client[db_name]["job_postings"]
     
     try:
         aggregation_pipeline = [
@@ -88,7 +90,7 @@ def propagate_skills_field_across_docs(client: MongoClient, db_name: str) -> lis
             {"$match": {"skills_count": {"$gte": 1}}}
         ]
         
-        aggregated_groups = list(job_postings_collection.aggregate(aggregation_pipeline))
+        aggregated_groups = list(collection.aggregate(aggregation_pipeline))
         
         for group in aggregated_groups:
             skills_to_propagate = None
@@ -101,17 +103,16 @@ def propagate_skills_field_across_docs(client: MongoClient, db_name: str) -> lis
             if skills_to_propagate:
                 for document in group['documents']:
                     if 'skills' not in document:
-                        job_postings_collection.update_one(
+                        collection.update_one(
                             {"_id": document['_id']},
                             {"$set": {"skills": skills_to_propagate}}
                         )
-                        updated_propagated_job_ids.append(document['job_id'])
         
         logger.info("Skills field successfully propagated across matching documents.")
     except Exception as e:
         logger.error(f"An error occurred while propagating the skills field: {e}")
-    
-    return updated_propagated_job_ids
+    finally:
+        client.close()
 
 def get_documents(collection_name: str, criteria: dict, fields: list) -> list:
     """Query job_postings collection based on specific criteria."""
@@ -144,5 +145,38 @@ def update_field(collection_name, search_field, search_value, update_field, new_
 
         collection.update_one(query, update)
 
+    finally:
+        client.close()
+
+def insert_document(collection_name, document):
+    """Inserts a document into a specific MongoDB collection."""
+    client = get_client()
+    config = load_mongodb_config()
+    db_name = config['database']
+    collection = client[db_name][collection_name]
+
+    try:
+        collection.insert_one(document)
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+    finally:
+        client.close()
+
+def insert_skill(skill: str):
+    """Inserts a skill document into bullet_points collection if it doesn't exist."""
+    client = get_client()
+    config = load_mongodb_config()
+    db_name = config['database']
+    collection = client[db_name]['bullet_points']
+
+    try:
+        if collection.count_documents({'skill': skill}) == 0:
+            collection.insert_one({'skill': skill, 'bullets': []})
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
     finally:
         client.close()

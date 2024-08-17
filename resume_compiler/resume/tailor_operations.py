@@ -1,6 +1,6 @@
 from ai.openai_operations import create_chat_completion, skills_analysis
 from config.settings import load_config
-from database.database_operations import get_documents, update_field
+from database.database_operations import get_documents, insert_skill, update_field
 from utils.helper_functions import line_fit, process_string
 
 config = load_config()
@@ -45,6 +45,7 @@ def verify_skills(job_skills):
                 skill = input(f"'{skill}' skill is too long. Enter shorter skill: ")
                 skill = process_string(skill)
                 user_input = input(f"Do you have the '{skill}' skills? (yes/no): ").strip().lower()
+            insert_skill(skill)
             verified_skills.append(skill)
 
         verified_skills = '^_^'.join(verified_skills)
