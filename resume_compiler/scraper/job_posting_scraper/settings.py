@@ -93,3 +93,5 @@ TWISTED_REACTOR = "twisted.internet.epollreactor.EPollReactor"
 #TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 
 FEED_EXPORT_ENCODING = "utf-8"
+
+USER_AGENTS_FILE = "resume_compiler/utils/user_agents.json"
