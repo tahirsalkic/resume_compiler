@@ -1,13 +1,14 @@
 from ai.openai_operations import create_chat_completion, skills_analysis
 from config.settings import load_config
 from database.database_operations import get_documents, insert_skill, update_field
-from utils.helper_functions import line_fit
+from utils.helper_functions import get_user_confirmation, line_fit
 
 config = load_config()
-robo_tailor = eval(config["DEFAULT"]["ROBO_TAILOR"])
+robo_tailor = eval(config["DEFAULT"]["robo_tailor"])
+skill_length_limit = config["RESUME"]["skill_length_limit"]
 
-def tailor_skills(job_ids: list) -> dict:
-    """Perform skills analysis on a list of job IDs and return a dictionary of job_id to analyzed description."""
+def tailor_skills(job_ids: list):
+    """Perform skills analysis on a list of job IDs."""
     criteria = {"job_id": {"$in": job_ids}}
     fields = ["job_id", "description"]
     
@@ -26,26 +27,20 @@ def tailor_skills(job_ids: list) -> dict:
         print("Error during skills analysis:", e)
         raise
 
-def get_user_confirmation(skill):
-    user_input = input(f"Do you have the '{skill}' skills? (yes/no): ").strip().lower()
-    while user_input not in ['yes', 'no']:
-        user_input = input("Please answer with 'yes' or 'no': ").strip().lower()
-    return user_input == 'yes'
-
 def get_replacement_skill(skill):
-    replacement_skills = create_chat_completion("replacement_skill", skill, temperature=0.7)
+    replacement_skills = create_chat_completion("replacement_skill", skill, temperature=0.8)
     print(replacement_skills)
     return input("Input a replacement skill: ").strip()
 
 def ensure_skill_fits_length(skill):
-    while not line_fit(skill, '<skill>lllllllllllllllllllllllllllllllllllllllll'):
+    while not line_fit(skill, skill_length_limit):
         shorter_skills = create_chat_completion("shorter_skill", skill, temperature=0.7)
         print(shorter_skills)
         skill = input(f"'{skill}' skill is too long. Enter shorter skill: ").strip()
     return skill
 
 def verify_single_skill(skill):
-    while not get_user_confirmation(skill):
+    while not get_user_confirmation(f"Do you have '{skill}' skills?"):
         skill = get_replacement_skill(skill)
     skill = ensure_skill_fits_length(skill)
     insert_skill(skill)
@@ -54,7 +49,12 @@ def verify_single_skill(skill):
 def verify_skills(job_skills):
     for job_id, skills in job_skills.items():
         skills_list = skills.split("^_^")
-        verified_skills = [verify_single_skill(skill) for skill in skills_list]
+        verified_skills = []
+        for skill in skills_list:
+            verified_skill = verify_single_skill(skill)
+            verified_skills.append(verified_skill)
+            print("Verified skills so far:", ", ".join(verified_skills))
+        
         verified_skills_str = '^_^'.join(verified_skills)
         update_field("job_postings", "job_id", job_id, "skills", verified_skills_str)
 

@@ -66,11 +66,8 @@ def line_fit(text, line, font_name='arial', font_size=10):
     
     return False
 
-def process_string(s):
-    letters_only = ''.join(filter(str.isalpha, s))
-    if letters_only.isupper() and ' ' not in s:
-        pass
-    else:
-        s = s.title()
-        
-    return s.strip()
+def get_user_confirmation(question: str):
+    user_input = input(f"{question} (yes/no): ").strip().lower()
+    while user_input not in ['yes', 'no']:
+        user_input = input("Please answer with 'yes' or 'no': ").strip().lower()
+    return user_input == 'yes'
