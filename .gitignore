@@ -166,3 +166,6 @@ cython_debug/
 
 # scraper user agents list
 resume_compiler/utils/user_agents.json
+
+# folder for misc scripts I want to run not related to the program
+misc/
