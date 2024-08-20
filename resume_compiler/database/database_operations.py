@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 from pymongo import MongoClient
 from pymongo.collection import Collection
@@ -53,15 +54,15 @@ def collect_new_job_postings(bookmark_urls: list) -> list:
 
     return new_job_ids
 
-def find_documents_missing_field(collection_name: str, field_name: str) -> list:
+def find_documents_missing_field(collection_name: str, key_name: str, field_name: str) -> list:
     """Find documents in the specified collection that lack a specified field."""
     client = get_client()
     config = load_mongodb_config()
     db_name = config['database']
     collection = client[db_name][collection_name]
     try:
-        query_results = collection.find({field_name: {"$exists": False}}, {"_id": 0, "job_id": 1})
-        documents_missing_field = [doc['job_id'] for doc in query_results]
+        query_results = collection.find({field_name: {"$exists": False}}, {"_id": 0, key_name: 1})
+        documents_missing_field = [doc[key_name] for doc in query_results]
         
         logger.info(f"Found {len(documents_missing_field)} documents without the {field_name} field.")
         return documents_missing_field
@@ -174,10 +175,36 @@ def insert_skill(skill: str):
     try:
         s = skill.lower()
         if collection.count_documents({'skill': s}) == 0:
-            collection.insert_one({'skill': s, 'bullets': []})
+            collection.insert_one({'skill': s})
     
     except Exception as e:
         print(f"An error occurred: {e}")
         return None
     finally:
         client.close()
+
+def update_skill_bullets(skill, verified_achievements):
+    client = get_client()
+    config = load_mongodb_config()
+    db_name = config['database']
+    collection = client[db_name]['bullet_points']
+
+    document = collection.find_one({'skill': skill})
+    if not document:
+        raise ValueError('Document not found')
+
+    bullets = document.get('bullets', [])
+    current_time = datetime.now()
+
+    new_bullets = [
+        {
+            'verb': verb,
+            'bullet': bullet,
+            'created_date': current_time,
+            'resume_reference': current_time
+        }
+        for verb, bullet in verified_achievements.items()
+    ]
+
+    bullets.extend(new_bullets)
+    collection.update_one({'skill': skill}, {'$set': {'bullets': bullets}})
