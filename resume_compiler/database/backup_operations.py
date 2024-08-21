@@ -2,10 +2,10 @@ import json
 import logging
 import os
 from datetime import datetime
+from shutil import rmtree
 from pymongo import MongoClient
 from database.db_helper_functions import get_client, load_mongodb_config
 
-# Set up logging
 logger = logging.getLogger(__name__)
 
 def generate_collections_map(backup_dir: str) -> dict:
@@ -93,3 +93,29 @@ def check_and_import():
     finally:
         client.close()
         logger.info("MongoDB connection closed.")
+
+def export_backups():
+    mongodb_config = load_mongodb_config()
+    backup_dir = mongodb_config['backup_dir']
+    db_name = mongodb_config['database']
+    client = get_client()
+    db = client[db_name]
+
+    dir_name = f"{db_name}_{datetime.now().strftime('%Y_%m_%d_%H_%M')}"
+    output_dir = os.path.join(backup_dir, dir_name)
+    os.makedirs(output_dir, exist_ok=True)
+    
+    for collection_name in db.list_collection_names():
+        filepath = os.path.join(output_dir, f"{collection_name}.json")
+        with open(filepath, 'w') as file:
+            for document in db[collection_name].find():
+                file.write(f"{document}\n")
+
+def clean_backups():
+    mongodb_config = load_mongodb_config()
+    backup_dir = mongodb_config['backup_dir']
+    subdirs = [os.path.join(backup_dir, d) for d in os.listdir(backup_dir) if os.path.isdir(os.path.join(backup_dir, d))]
+    subdirs.sort(key=os.path.getmtime, reverse=True)
+    
+    for old_dir in subdirs[3:]:
+        rmtree(old_dir)
