@@ -1,4 +1,6 @@
 import logging
+from re import sub
+from datetime import datetime
 from urllib.parse import urlparse
 from shutil import copyfile, SameFileError, SpecialFileError
 from PIL import ImageFont, ImageDraw, Image
@@ -71,3 +73,9 @@ def get_user_confirmation(question: str):
     while user_input not in ['yes', 'no']:
         user_input = input("Please answer with 'yes' or 'no': ").strip().lower()
     return user_input == 'yes'
+
+def sanitize_filename(filename):
+    return sub(r'[^a-zA-Z0-9 \-_\.]', '', filename)
+
+def get_current_date():
+    return datetime.now().strftime("%b-%Y")

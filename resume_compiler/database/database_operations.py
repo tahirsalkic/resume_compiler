@@ -149,6 +149,22 @@ def update_field(collection_name, search_field, search_value, update_field, new_
     finally:
         client.close()
 
+def update_many_fields(collection_name, filter_field, filter, update_field, new_value, array_filters={}):
+    """Update many fields in MongoDB where a specified field matches a value."""
+    client = get_client()
+    try:
+        config = load_mongodb_config()
+        db_name = config['database']
+        collection = client[db_name][collection_name]
+
+        query = {filter_field: filter}
+        update = {"$set": {update_field: new_value}}
+
+        collection.update_many(query, update, array_filters=array_filters)
+
+    finally:
+        client.close()
+
 def insert_document(collection_name, document):
     """Inserts a document into a specific MongoDB collection."""
     client = get_client()
@@ -208,3 +224,10 @@ def update_skill_bullets(skill, verified_achievements):
 
     bullets.extend(new_bullets)
     collection.update_one({'skill': skill}, {'$set': {'bullets': bullets}})
+
+def get_aggregated_data(collection_name, pipeline):
+    client = get_client()
+    config = load_mongodb_config()
+    db_name = config['database']
+    bullets_collection = client[db_name][collection_name]
+    return bullets_collection.aggregate(pipeline)

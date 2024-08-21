@@ -3,3 +3,4 @@ scrapy
 openai
 tiktoken
 pillow
+python-docx
