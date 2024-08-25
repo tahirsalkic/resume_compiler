@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from bson import json_util
 from datetime import datetime
 from shutil import rmtree
 from pymongo import MongoClient
@@ -42,7 +43,7 @@ def import_collection_from_file(db, collection_name: str, file_path: str):
     try:
         with open(file_path, 'r') as file:
             for line in file:
-                data = json.loads(line)
+                data = json.loads(line[:-1])
                 data.pop('_id', None)
                 if isinstance(data, list):
                     db[collection_name].insert_many(data)
@@ -109,7 +110,8 @@ def export_backups():
         filepath = os.path.join(output_dir, f"{collection_name}.json")
         with open(filepath, 'w') as file:
             for document in db[collection_name].find():
-                file.write(f"{document}\n")
+                json_str = json_util.dumps(document)
+                file.write(f"{json_str}\n")
 
 def clean_backups():
     mongodb_config = load_mongodb_config()
