@@ -29,8 +29,13 @@ def verify_achievements(skill, achievements):
                     verified_achievements[verb] = achievement
                     break
                 else:
-                    more_relevant_achievement = create_chat_completion("new_resume_bullet_point", f"**Skill**: {skill}\n**Verb**: {verb}", temperature=0.8)
-                    print(f"More relevant example achievement: {more_relevant_achievement}")
+                    more_relevant_achievements = [
+                        create_chat_completion("new_resume_bullet_point", f"**Skill**: {skill}\n**Verb**: {verb}", temperature=0.8)
+                        for _ in range(10)
+                    ]
+                    for i, more_relevant_achievement in enumerate(more_relevant_achievements):
+                        print(f"More relevant example achievement {i+1}: {more_relevant_achievement}")
+
                     achievement = input("Enter an achievement: ").strip()
                 
     return verified_achievements
