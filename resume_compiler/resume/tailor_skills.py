@@ -20,18 +20,26 @@ def tailor_skills(job_ids: list):
     try:
         job_listings = get_documents('job_postings', criteria, fields)
         logger.debug("Fetched job listings: %s", job_listings)
-        
+
         job_descriptions = {doc["job_id"]: doc["description"] for doc in job_listings if "description" in doc}
         logger.debug("Extracted job descriptions: %s", job_descriptions)
 
         skills = skills_analysis(job_descriptions)
-        for skill in skills:
-            while not len(skill.split('^_^')) == 15:
-                logger.warning("AI failed to return appropriate response for skill analysis")
-                skills = skills_analysis(job_descriptions)
-                break
-        logger.debug("Analyzed skills: %s", skills)
-        
+        logger.debug("Analyzed initial skills: %s", skills)
+
+        invalid_skills_job_ids = [
+            job_id for job_id, skill in zip(job_descriptions.keys(), skills)
+            if len(skill.split('^_^')) != 15
+        ]
+
+        if invalid_skills_job_ids:
+            logger.warning("Some skills did not meet the criteria, re-running analysis for job ids: %s", invalid_skills_job_ids)
+            invalid_job_descriptions = {job_id: job_descriptions[job_id] for job_id in invalid_skills_job_ids}
+            new_skills = skills_analysis(invalid_job_descriptions)
+            
+            for job_id, new_skill in zip(invalid_skills_job_ids, new_skills):
+                job_descriptions[job_id] = new_skill
+
         job_skills = dict(zip(job_descriptions.keys(), skills))
         logger.info("Mapped job descriptions to skills: %s", job_skills)
 
@@ -137,8 +145,16 @@ def collect_skills(job_skills):
                     skills[index] = replacement_skills_list[i]
                 
                 updated_job_skills = "^_^".join(skills)
-                update_field("job_postings", "job_id", job_id, "skills", updated_job_skills)
-                logger.info("Updated job id %s with new skills collection: %s", job_id, updated_job_skills)
+                capitalized_skills = create_chat_completion("capitalize_skills", updated_job_skills, temperature=0.4)
+                capitalized_skills_list = capitalized_skills.split("^_^")[:15]
+                while len(capitalized_skills_list) != 15:
+                    logger.warning("AI failed to capitalize skills")
+                    capitalized_skills = create_chat_completion("capitalize_skills", updated_job_skills, temperature=0.4)
+                    capitalized_skills_list = capitalized_skills.split("^_^")[:15]
+                    capitalized_skills = "^_^".join(capitalized_skills_list)
+
+                update_field("job_postings", "job_id", job_id, "skills", capitalized_skills)
+                logger.info("Updated job id %s with new skills collection: %s", job_id, capitalized_skills)
 
     except Exception as e:
         logger.error("Error collecting skills: %s", e)
