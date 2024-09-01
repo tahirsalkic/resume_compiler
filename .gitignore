@@ -167,5 +167,9 @@ cython_debug/
 # scraper user agents list
 resume_compiler/utils/user_agents.json
 
-# folder for misc scripts I want to run not related to the program
-misc/
+# Ignore everything in the misc directory
+misc/*
+
+# Whitelist README pics
+!misc/logo.jpg
+!misc/tailored_resume_examples.png
