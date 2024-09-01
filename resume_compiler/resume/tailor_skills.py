@@ -14,39 +14,44 @@ skill_length_limit = config["RESUME"]["skill_length_limit"]
 def tailor_skills(job_ids: list):
     """Perform skills analysis on a list of job IDs."""
     logger.info("Starting skill tailoring for job ids: %s", job_ids)
-    criteria = {"job_id": {"$in": job_ids}}
-    fields = ["job_id", "description"]
+    all_job_descriptions = {}
+    valid_skills = {}
 
     try:
-        job_listings = get_documents('job_postings', criteria, fields)
-        logger.debug("Fetched job listings: %s", job_listings)
+        while job_ids:
+            criteria = {"job_id": {"$in": job_ids}}
+            fields = ["job_id", "description"]
+            job_listings = get_documents('job_postings', criteria, fields)
+            logger.debug("Fetched job listings: %s", job_listings)
 
-        job_descriptions = {doc["job_id"]: doc["description"] for doc in job_listings if "description" in doc}
-        logger.debug("Extracted job descriptions: %s", job_descriptions)
+            job_descriptions = {doc["job_id"]: doc["description"] for doc in job_listings if "description" in doc}
+            all_job_descriptions.update(job_descriptions)
+            logger.debug("Extracted job descriptions: %s", job_descriptions)
 
-        skills = skills_analysis(job_descriptions)
-        logger.debug("Analyzed initial skills: %s", skills)
+            skills = skills_analysis(job_descriptions)
+            logger.debug("Analyzed skills: %s", skills)
 
-        invalid_skills_job_ids = [
-            job_id for job_id, skill in zip(job_descriptions.keys(), skills)
-            if len(skill.split('^_^')) != 15
-        ]
+            invalid_skills_job_ids = [
+                job_id for job_id, skill in zip(job_descriptions.keys(), skills)
+                if len(skill.split('^_^')[:15]) != 15
+            ]
 
-        if invalid_skills_job_ids:
-            logger.warning("Some skills did not meet the criteria, re-running analysis for job ids: %s", invalid_skills_job_ids)
-            invalid_job_descriptions = {job_id: job_descriptions[job_id] for job_id in invalid_skills_job_ids}
-            new_skills = skills_analysis(invalid_job_descriptions)
-            
-            for job_id, new_skill in zip(invalid_skills_job_ids, new_skills):
-                job_descriptions[job_id] = new_skill
+            for job_id, skill in zip(job_descriptions.keys(), skills):
+                if job_id not in invalid_skills_job_ids:
+                    skill = skill.split('^_^')[:15]
+                    valid_skills[job_id] = ('^_^').join(skill)
 
-        job_skills = dict(zip(job_descriptions.keys(), skills))
-        logger.info("Mapped job descriptions to skills: %s", job_skills)
-
-        if robo_tailor:
-            collect_skills(job_skills)
-        else:
-            verify_skills(job_skills)
+            if invalid_skills_job_ids:
+                logger.warning("Some skills did not meet the criteria, re-running analysis for job ids: %s", invalid_skills_job_ids)
+                job_ids = invalid_skills_job_ids
+            else:       
+                job_skills = valid_skills
+                logger.info("Mapped job descriptions to skills: %s", job_skills)
+                if robo_tailor:
+                    collect_skills(job_skills)
+                else:
+                    verify_skills(job_skills)
+                break
 
     except Exception as e:
         logger.error("Error during skills analysis: %s", e)
