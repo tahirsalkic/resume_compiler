@@ -4,13 +4,13 @@ from scrapy_playwright.page import PageMethod
 from linkedin_scraper.linkedin_scraper.items import LinkedInPosting
 from utils.helper_functions import get_job_id_from_url
 
-class LinkedinSpider(scrapy.Spider):
-    name = "linkedin"
+class JobPostingSpider(scrapy.Spider):
+    name = "job_posting"
     allowed_domains = ["www.linkedin.com"]
 
     def __init__(self, start_urls=[], *args, **kwargs):
-        super(LinkedinSpider, self).__init__(*args, **kwargs)
-        self.start_urls = start_urls
+        super(JobPostingSpider, self).__init__(*args, **kwargs)
+        self.lot_ids = start_urls
         self.section_selectors = {
             'company': '.artdeco-entity-image',
             'role': '.top-card-layout__title',
@@ -19,6 +19,9 @@ class LinkedinSpider(scrapy.Spider):
         }
         
     async def init_page(self, page: Page, request):
+        await page.route("**/*", lambda route, request: 
+            route.abort() if request.resource_type in ["image", "media", "font"] else route.continue_())
+        
         await page.context.add_init_script("""
             Object.defineProperty(Navigator.prototype, 'languages', { get: () => ['en-CA', 'en'] });
             Object.defineProperty(Navigator.prototype, 'language', { get: () => 'en-CA' });
@@ -48,25 +51,16 @@ class LinkedinSpider(scrapy.Spider):
                 url=url,
                 meta={
                     "playwright": True,
-                    "playwright_page_init_callback": self.init_page
+                    "playwright_page_init_callback": self.init_page,
+                    "playwright_page_methods": [
+                        PageMethod("wait_for_selector", self.section_selectors['role']),
+                    ],
                 },
                 callback=self.parse,
                 errback=self.errback_close_page,
             )
 
-    @staticmethod
-    def extract_element(key, element):
-        if key == 'company':
-            return element.xpath('@alt').get('').strip()
-        elif key == 'role':
-            return element.xpath('text()').get('').strip()
-        elif key == 'description':
-            description_elements = element.xpath('.//text()[normalize-space()]').getall()
-            return ' '.join([desc.strip() for desc in description_elements if desc.strip()])
-        elif key == 'city':
-            return element.xpath('text()').get('').strip()
-
-    def parse(self, response):
+    def parse(self, response,):
         self.logger.info(f"Parsing {response.url}")
         job_id = get_job_id_from_url(response.url)
         item = LinkedInPosting(job_id=job_id)

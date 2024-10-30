@@ -1,34 +1,26 @@
 import logging
-from scrapy.crawler import CrawlerRunner
+from scrapy.crawler import CrawlerProcess
 from scrapy.settings import Settings
-from twisted.internet import reactor, defer
 from scraper.job_posting_scraper import settings as my_settings
 from scraper.job_posting_scraper.spiders.linkedin import LinkedinSpider
-from scraper.job_posting_scraper.spiders.user_agents import UserAgentsSpider
 from utils.helper_functions import ids_to_urls
-
+from scrapy.utils.log import configure_logging
 
 logger = logging.getLogger(__name__)
 
 def run_job_scraper(ids: list):
-    logger.info("Starting the user agent spider and then the LinkedIn scraper.")
+    logger.info("Starting the LinkedIn scraper.")
     
     try:
         urls = ids_to_urls(ids)
         
+        configure_logging({"LOG_FORMAT": "%(levelname)s: %(message)s"})
         crawler_settings = Settings()
         crawler_settings.setmodule(my_settings)
-        crawler_dict = dict(crawler_settings)
-        runner = CrawlerRunner(settings=crawler_dict)
+        process = CrawlerProcess(settings=crawler_settings)
 
-        @defer.inlineCallbacks
-        def crawl():
-            yield runner.crawl(UserAgentsSpider)
-            yield runner.crawl(LinkedinSpider, start_urls=urls)
-            reactor.stop()
-            
-        crawl()
-        reactor.run()
-        logger.info("User Agent Spider and LinkedIn scraper finished successfully.")
+        process.crawl(LinkedinSpider, start_urls = urls)
+        process.start()
+        logger.info("LinkedIn scraper finished successfully.")
     except Exception as e:
-        logger.error("An error occurred while running the spiders: %s", str(e))
+        logger.error("An error occurred while running the scraper: %s", str(e))

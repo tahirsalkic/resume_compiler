@@ -3,4 +3,6 @@ scrapy
 openai
 tiktoken
 pillow
+image
 python-docx
+python-dotenv

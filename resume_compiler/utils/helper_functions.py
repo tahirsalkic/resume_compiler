@@ -79,3 +79,12 @@ def sanitize_filename(filename):
 
 def get_current_date():
     return datetime.now().strftime("%b-%Y")
+
+def config_exists(config, *keys):
+    current = config
+    try:
+        for key in keys:
+            current = current[key]
+        return True
+    except KeyError:
+        return False

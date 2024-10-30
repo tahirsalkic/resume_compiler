@@ -8,14 +8,14 @@ from database.database_operations import get_aggregated_data, update_field, upda
 from resume.resume_helper_functions import (
     build_output_path, extract_job_details, fetch_new_jobs, 
     format_aggregated_data, generate_job_url, generate_output_filename,
-    prepare_skills_list, save_pdf, save_resume, tailor_achievement, tailor_role, tailor_skill
+    prepare_skills_list, save_pdf, save_resume, tailor_achievement, tailor_city, tailor_role, tailor_skill
 )
-from utils.helper_functions import get_current_date
+from ai.openai_operations import pick_a_hat
+from utils.helper_functions import config_exists, get_current_date
 
 logger = logging.getLogger(__name__)
 
 config = load_config()
-template_path = config["RESUME"]["template"]
 
 def display_dict(d):
     logger.debug("Displaying dictionary.")
@@ -82,7 +82,7 @@ def aggregate_skill_bullets(skills):
     logger.debug(f"Aggregated data: {aggregated_data}")
     return aggregated_data
 
-def update_resume(template, role, full_url, fixed_skills_list, selected_bullets):
+def update_resume(template, role, city, full_url, fixed_skills_list, selected_bullets):
     logger.debug(f"Updating resume for role: {role}, URL: {full_url}, Skills: {fixed_skills_list}.")
     skill_count = 0
     for p in template.paragraphs:
@@ -90,6 +90,8 @@ def update_resume(template, role, full_url, fixed_skills_list, selected_bullets)
             tailor_role(p, role, full_url)
         elif '<skill>' in p.text:
             skill_count = tailor_skill(p, fixed_skills_list, skill_count)
+        elif '<City>' in p.text:
+            tailor_city(p, city)
     
     tailor_achievement(template, selected_bullets)
     logger.debug("Resume updated with selected bullets and skills.")
@@ -99,7 +101,7 @@ def tailor_resume():
     new_jobs = fetch_new_jobs()
     
     for new_job in new_jobs:
-        job_id, company, role, skills = extract_job_details(new_job)
+        job_id, company, role, city, skills = extract_job_details(new_job)
         
         full_url = generate_job_url(job_id)
         current_date = get_current_date()
@@ -111,6 +113,13 @@ def tailor_resume():
             logger.warning(f"Resume '{output_filename}' already exists.")
             continue
         
+        while True:
+            profile = pick_a_hat(role)
+            if config_exists(config, "RESUME", f"{profile}_template"):
+                break
+            logger.warning(f"Could not find profile: '{profile}' in config.")
+
+        template_path = config["RESUME"][f"{profile}_template"]
         template = Document(template_path)
         logger.debug(f"Using template path: {template_path}")
         
@@ -119,7 +128,7 @@ def tailor_resume():
         aggregated_data = aggregate_skill_bullets(search_skills)
         summary_of_achievements = select_bullets(aggregated_data)
         
-        update_resume(template, role, full_url, skills_list, summary_of_achievements)
+        update_resume(template, role, city, full_url, skills_list, summary_of_achievements)
         save_resume(template, output_path)
         save_pdf(output_path, role, company, current_date)
         update_many_fields("bullet_points", "bullets.bullet", {"$in": summary_of_achievements}, "bullets.$[elem].resume_reference", datetime.now(), [{ "elem.bullet": {"$in": summary_of_achievements} }])

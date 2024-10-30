@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 config = load_config()
 role_length_limit = config["RESUME"]["role_length_limit"]
+city_length_limit = config["RESUME"]["city_length_limit"]
+default_city = config["RESUME"]["default_city"]
 skill_length_limit = config["RESUME"]["skill_length_limit"]
 
 def prepare_skills_list(skills):
@@ -101,6 +103,38 @@ def tailor_role(paragraph, role, full_url):
     add_hyperlink(paragraph, role, full_url)
     return role
 
+def parse_city(city):
+    parts = city.split(',')
+    if len(parts) < 2:
+        return default_city
+    
+    city = parts[0].strip()
+    region = parts[1].strip()
+    
+    if region.lower() in ("ontario", "on"):
+        return f"{city}, ON"
+    else:
+        return default_city
+    
+def tailor_city(paragraph, city):
+    logger.debug(f"Handling city paragraph for '{city}'.")
+    city = parse_city(city)
+    
+    while True:
+        if not get_user_confirmation(f"Is this city okay? '{city}'?"):
+            while True:
+                city = input("Enter new city: ")
+                if not line_fit(city, city_length_limit, 'arial', 10):
+                    city = input(f"'{city}' city is too long. Enter shorter city: ")
+                break
+        elif not line_fit(city, city_length_limit, 'arial', 10):
+            city = input(f"'{city}' city is too long. Enter shorter city: ")
+            continue
+        else:
+            break
+
+    replace_text_in_paragraph(paragraph, '<City>', city)
+
 def tailor_achievement(template, selected_bullets):
     logger.debug("Handling achievement paragraphs.")
     bullet_index = 0
@@ -138,7 +172,13 @@ def fetch_new_jobs():
 
 def extract_job_details(new_job):
     logger.debug(f"Extracting job details from job: {new_job}")
-    return new_job['job_id'], new_job['company'], new_job['role'], new_job['skills']
+    return (
+        new_job.get('job_id'), 
+        new_job.get('company'), 
+        new_job.get('role'), 
+        new_job.get('city', default_city),
+        new_job.get('skills')
+    )
 
 def generate_job_url(job_id):
     logger.debug(f"Generating job URL for job ID: {job_id}")

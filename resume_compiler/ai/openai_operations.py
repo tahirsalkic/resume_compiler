@@ -34,6 +34,10 @@ def analyze_description(description: str, prompt: str) -> str:
     """Analyze a job description using a given prompt."""
     return create_chat_completion(prompt, description, temperature=0.4)
 
+def pick_a_hat(role: str) -> str:
+    """Choose the closest profile using a given prompt."""
+    return create_chat_completion('pick_a_hat', role, temperature=0.4)
+
 def skills_analysis(job_descriptions: dict) -> list:
     """Analyze job descriptions using a given prompt in parallel."""
     results = []
