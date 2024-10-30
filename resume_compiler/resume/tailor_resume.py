@@ -20,7 +20,9 @@ config = load_config()
 def display_dict(d):
     logger.debug("Displaying dictionary.")
     for verb, skills in d.items():
+        print("\n")
         print(f"Verb: {verb}")
+        print("=================================================================================")
         for skill, bullet in skills.items():
             print(f"  Skill: {skill}")
             print(f"    {bullet[0]}")
@@ -33,6 +35,7 @@ def select_bullets(aggregated_data):
 
     while len(selected_bullets) < 5 and any(len(skills) > 0 for skills in aggregated_data.values()):
         try:
+            print("\n\n")
             verb = input("Enter verb: ")
             if verb not in aggregated_data:
                 print("Invalid verb. Please try again.")

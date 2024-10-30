@@ -40,14 +40,15 @@ def pick_a_hat(role: str) -> str:
 
 def skills_analysis(job_descriptions: dict) -> list:
     """Analyze job descriptions using a given prompt in parallel."""
-    results = []
+    job_skills = {}
     with ThreadPoolExecutor() as executor:
-        future_to_desc = {executor.submit(analyze_description, desc, "skills_analysis"): desc for desc in job_descriptions.values()}
-        for future in as_completed(future_to_desc):
+        future_to_key = {executor.submit(analyze_description, desc, "skills_analysis"): key for key, desc in job_descriptions.items()}
+        for future in as_completed(future_to_key):
             try:
                 result = future.result()
-                results.append(result)
+                key = future_to_key[future]
+                job_skills[key] = result
             except Exception as e:
                 logger.error("Job analysis failed.", exc_info=True)
 
-    return results
+        return job_skills

@@ -28,29 +28,27 @@ def tailor_skills(job_ids: list):
             all_job_descriptions.update(job_descriptions)
             logger.debug("Extracted job descriptions: %s", job_descriptions)
 
-            skills = skills_analysis(job_descriptions)
-            logger.debug("Analyzed skills: %s", skills)
+            job_skills = skills_analysis(job_descriptions)
 
             invalid_skills_job_ids = [
-                job_id for job_id, skill in zip(job_descriptions.keys(), skills)
-                if len(skill.split('^_^')[:15]) != 15
+                job_id for job_id, skills in job_skills.items()
+                if len(skills.split('^_^')[:15]) != 15
             ]
 
-            for job_id, skill in zip(job_descriptions.keys(), skills):
+            for job_id, skills in job_skills.items():
                 if job_id not in invalid_skills_job_ids:
-                    skill = skill.split('^_^')[:15]
-                    valid_skills[job_id] = ('^_^').join(skill)
+                    skills = skills.split('^_^')[:15]
+                    valid_skills[job_id] = ('^_^').join(skills)
 
             if invalid_skills_job_ids:
                 logger.warning("Some skills did not meet the criteria, re-running analysis for job ids: %s", invalid_skills_job_ids)
                 job_ids = invalid_skills_job_ids
             else:       
-                job_skills = valid_skills
-                logger.info("Mapped job descriptions to skills: %s", job_skills)
+                logger.info("Mapped job descriptions to skills: %s", valid_skills)
                 if robo_tailor:
-                    collect_skills(job_skills)
+                    collect_skills(valid_skills)
                 else:
-                    verify_skills(job_skills)
+                    verify_skills(valid_skills)
                 break
 
     except Exception as e:
@@ -114,52 +112,74 @@ def verify_skills(job_skills):
         update_field("job_postings", "job_id", job_id, "skills", chosen_skills_str)
         logger.info("Updated job id %s with skills: %s", job_id, chosen_skills_str)
 
-def are_skills_valid(replacement_skills_list, missing_skills):
+def are_skills_valid(replacement_skills_list):
     unique_skills = list({skill for skill in replacement_skills_list})
-    return len(missing_skills) == len(unique_skills) == 15
+    return len(unique_skills) == 15
 
 def collect_skills(job_skills):
     fields = ["skill"]
     try:
-        skill_collection = {
-            doc["skill"]
-            for doc in get_documents('bullet_points', {}, fields)
-            if "skill" in doc
-        }
-        logger.debug("Collected existing skills: %s", skill_collection)
-
         for job_id, skills_str in job_skills.items():
+            skill_collection = {
+                doc["skill"].lower()
+                for doc in get_documents('bullet_points', {}, fields)
+                if "skill" in doc
+            }
+            logger.debug("Collected existing skills: %s", skill_collection)
+
+            verified_skills = []
+
             skills = skills_str.split("^_^")
-            missing_skills = [skill for skill in skills if skill not in skill_collection][:15]
+            for skill in skills:
+                skill = skill.lower()
+                if skill in skill_collection:
+                    verified_skills.append(skill)
+                    skill_collection.remove(skill)
+                else:
+                    replacement_skill = skill
+                    while replacement_skill not in skill_collection:
+                        logger.info("Found missing skills for job id %s: %s", job_id, skill)
+                        prompt = (
+                            f"Inputted skill: {skill}\n\n"
+                            f"Skill collection: {'^_^'.join(skill_collection)}"
+                        )
+                        replacement_skill = create_chat_completion("collect_skills", prompt, temperature=0.7)
+                    verified_skills.append(replacement_skill)
+                    skill_collection.remove(replacement_skill)
 
-            if missing_skills:
-                logger.info("Found missing skills for job id %s: %s", job_id, missing_skills)
+            while len(verified_skills) < 15:
+                for skill in verified_skills:
+                    logger.info("Not enough skills for job id %s", job_id)
+                    prompt = (
+                        f"Inputted skill: {skill}\n\n"
+                        f"Skill collection: {'^_^'.join(skill_collection)}"
+                    )
+                    replacement_skill = create_chat_completion("collect_skills", prompt, temperature=0.7)
+                    while replacement_skill not in skill_collection:
+                        logger.info("Adding additional skill for job id %s", job_id)
+                        prompt = (
+                            f"Inputted skill: {skill}\n\n"
+                            f"Skill collection: {'^_^'.join(skill_collection)}"
+                        )
+                        replacement_skill = create_chat_completion("collect_skills", prompt, temperature=0.7)
+                    verified_skills.append(replacement_skill)
+                    skill_collection.remove(replacement_skill)
+                    if len(verified_skills) < 15:
+                        break
 
-                prompt = (
-                    f"Inputted list: {'^_^'.join(missing_skills)}\n"
-                    f"Skill collection: {'^_^'.join(skill_collection)}"
-                )
-                replacement_skills = create_chat_completion("collect_skills", prompt, temperature=0.4)
-                replacement_skills_list = (replacement_skills.split("^_^"))[:15]
-                while not are_skills_valid(replacement_skills_list, missing_skills):
-                    logger.warning("AI failed to return appropriate response for collect skills prompt")
-                    replacement_skills = create_chat_completion("collect_skills", prompt, temperature=0.4)
-                    replacement_skills_list = (replacement_skills.split("^_^"))[:15]
-                for i, skill in enumerate(missing_skills):
-                    index = skills.index(skill)
-                    skills[index] = replacement_skills_list[i]
-                
-                updated_job_skills = "^_^".join(skills)
+            logger.info("Verified skills for job id %s: %s", job_id, verified_skills)
+
+            updated_job_skills = "^_^".join(verified_skills)
+            capitalized_skills = create_chat_completion("capitalize_skills", updated_job_skills, temperature=0.4)
+            capitalized_skills_list = capitalized_skills.split("^_^")[:15]
+            while len(capitalized_skills_list) != 15:
+                logger.warning("AI failed to capitalize skills")
                 capitalized_skills = create_chat_completion("capitalize_skills", updated_job_skills, temperature=0.4)
                 capitalized_skills_list = capitalized_skills.split("^_^")[:15]
-                while len(capitalized_skills_list) != 15:
-                    logger.warning("AI failed to capitalize skills")
-                    capitalized_skills = create_chat_completion("capitalize_skills", updated_job_skills, temperature=0.4)
-                    capitalized_skills_list = capitalized_skills.split("^_^")[:15]
-                    capitalized_skills = "^_^".join(capitalized_skills_list)
+                capitalized_skills = "^_^".join(capitalized_skills_list)
 
-                update_field("job_postings", "job_id", job_id, "skills", capitalized_skills)
-                logger.info("Updated job id %s with new skills collection: %s", job_id, capitalized_skills)
+            update_field("job_postings", "job_id", job_id, "skills", capitalized_skills)
+            logger.info("Updated job id %s with new skills collection: %s", job_id, capitalized_skills)
 
     except Exception as e:
         logger.error("Error collecting skills: %s", e)
