@@ -79,6 +79,8 @@ class LinkedinSpider(scrapy.Spider):
         yield item
         
     async def errback_close_page(self, failure):
-        page: Page = failure.request.meta["playwright_page"]
         self.logger.error(f"Request failed: {failure}", exc_info=True)
-        await page.close()
+        if 'playwright_page' in failure.request.meta:
+            page: Page = failure.request.meta["playwright_page"]
+            await page.close()
+

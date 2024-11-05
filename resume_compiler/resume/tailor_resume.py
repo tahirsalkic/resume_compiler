@@ -4,7 +4,7 @@ from docx import Document
 from os.path import exists
 
 from config.settings import load_config
-from database.database_operations import get_aggregated_data, update_field, update_many_fields
+from database.database_operations import get_aggregated_data, score_bullet_quality, update_field, update_many_fields
 from resume.resume_helper_functions import (
     build_output_path, extract_job_details, fetch_new_jobs, 
     format_aggregated_data, generate_job_url, generate_output_filename,
@@ -26,6 +26,63 @@ def display_dict(d):
         for skill, bullet in skills.items():
             print(f"  Skill: {skill}")
             print(f"    {bullet[0]}")
+
+def calculate_bullets(data):
+    WEIGHT_QUALITY = 2
+    WEIGHT_SKILL_RANK = 1
+
+    additional_bullets = [
+        "Designed data ingestion pipeline for 191 sensor channels over 600,000+ meters, handling 700+ million daily records",
+        "Managed daily data ingestion workflows, ensuring the accuracy and reliability of 200GB of data ingested per day",
+        "Optimizing data models for smart meter sensors, achieving a 15% increase in data retrieval efficiency",
+        "Created an installer, reducing install time by 80% and streamlining the user installation process",
+        "Improved data storage solutions, cutting storage costs by 20% while maintaining data integrity"
+    ]
+
+    scored_points = []
+    for verb, skills in data.items():
+        for skill, attributes in skills.items():
+            quality = attributes.get('quality', 0)
+            skill_rank = attributes.get('skill_rank', 6)
+            text = attributes.get('bullet', '')
+
+            score = (quality * WEIGHT_QUALITY) + ((6 - skill_rank) * WEIGHT_SKILL_RANK)
+            scored_points.append((score, text, verb))
+
+    scored_points.sort(reverse=True, key=lambda x: x[0])
+    top_points = scored_points[:5]
+    selected_verbs = set()
+    final_selection = []
+
+    seen_texts = set()
+
+    for score, text, verb in top_points:
+        if verb not in selected_verbs and text not in seen_texts:
+            selected_verbs.add(verb)
+            final_selection.append((score, text, verb))
+            seen_texts.add(text)
+
+    # If less than 5 due to diversification, fill in with next best options
+    i = 5
+    while len(final_selection) < 5 and i < len(scored_points):
+        score, text, verb = scored_points[i]
+        if verb not in selected_verbs and text not in seen_texts:
+            selected_verbs.add(verb)
+            final_selection.append((score, text, verb))
+            seen_texts.add(text)
+        i += 1
+
+    # Add predefined bullets if necessary to reach at least 5, avoiding duplicates
+    for bullet in additional_bullets:
+        if len(final_selection) >= 5:
+            break
+        if bullet not in seen_texts:
+            final_selection.append((0, bullet, None))
+            seen_texts.add(bullet)
+
+    bullet_texts = [text for _, text, _ in final_selection]
+
+    return bullet_texts
 
 def select_bullets(aggregated_data):
     logger.debug("Selecting bullets from aggregated data.")
@@ -71,19 +128,20 @@ def aggregate_skill_bullets(skills):
     pipeline = [
         {'$match': {'skill': {'$in': top_skills}}},
         {'$unwind': '$bullets'},
-        {'$group': {
-            '_id': {
-                'skill': '$skill',
-                'verb': '$bullets.verb'
-            },
-            'bullets': {'$push': '$bullets.bullet'}
+        {'$project': {
+            '_id': 1,
+            'skill': 1,
+            'verb': '$bullets.verb',
+            'bullet': '$bullets.bullet',
+            'quality': '$bullets.quality'
         }},
-        {'$sort': {'_id.skill': 1, '_id.verb': 1}}
+        {'$sort': {'skill': 1, 'verb': 1}}
     ]
     agg = get_aggregated_data("bullet_points", pipeline)
-    aggregated_data = format_aggregated_data(agg)
-    logger.debug(f"Aggregated data: {aggregated_data}")
-    return aggregated_data
+    aggregated_data = format_aggregated_data(agg, top_skills)
+    scored_aggregate = score_bullet_quality(aggregated_data)
+    logger.debug(f"Aggregated data: {scored_aggregate}")
+    return scored_aggregate
 
 def update_resume(template, role, city, full_url, fixed_skills_list, selected_bullets):
     logger.debug(f"Updating resume for role: {role}, URL: {full_url}, Skills: {fixed_skills_list}.")
@@ -129,7 +187,7 @@ def tailor_resume():
         skills_list = prepare_skills_list(skills)
         search_skills = [skill.lower() for skill in skills_list]
         aggregated_data = aggregate_skill_bullets(search_skills)
-        summary_of_achievements = select_bullets(aggregated_data)
+        summary_of_achievements = calculate_bullets(aggregated_data)
         
         update_resume(template, role, city, full_url, skills_list, summary_of_achievements)
         save_resume(template, output_path)

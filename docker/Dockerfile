@@ -41,3 +41,8 @@ RUN git config --global user.name "Tahir Salkic" \
 
 # Create a Firefox profile for headless mode
 RUN firefox -headless -CreateProfile "root"
+
+# Install Playwright and its dependencies
+RUN pip install playwright \
+    && playwright install-deps \
+    && playwright install

@@ -231,3 +231,38 @@ def get_aggregated_data(collection_name, pipeline):
     db_name = config['database']
     bullets_collection = client[db_name][collection_name]
     return bullets_collection.aggregate(pipeline)
+
+def score_bullet_quality(agg):
+    client = get_client()
+    config = load_mongodb_config()
+    db_name = config['database']
+    bullets_collection = client[db_name]["bullet_points"]
+
+    scored_agg = {}
+
+    for verb, bullets in agg.items():
+        if verb not in scored_agg:
+            scored_agg[verb] = {}
+
+        for skill, bullet in bullets.items():
+            if 'quality' not in bullet or bullet['quality'] == 0:
+                print(f"Bullet without quality found for verb: {verb} and skill: {skill}\n{bullet['bullet']}")
+                while True:
+                    try:
+                        score = int(input("Please input a score (1-5) for this bullet: "))
+                        if 1 <= score <= 5:
+                            break
+                        else:
+                            print("Score must be between 1 and 5.")
+                    except ValueError:
+                        print("Invalid input. Please enter an integer between 1 and 5.")
+
+                bullets_collection.update_one(
+                    {'skill': skill, 'bullets.verb': verb, 'bullets.bullet': bullet['bullet']},
+                    {'$set': {'bullets.$.quality': score}}
+                )
+
+                scored_agg[verb][skill] = bullet.copy()
+                scored_agg[verb][skill]['quality'] = score
+
+    return scored_agg

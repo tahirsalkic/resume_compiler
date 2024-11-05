@@ -6,3 +6,5 @@ pillow
 image
 python-docx
 python-dotenv
+playwright
+scrapy-playwright

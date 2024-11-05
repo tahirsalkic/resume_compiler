@@ -1,3 +1,4 @@
+from enum import Enum
 import logging
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -118,23 +119,25 @@ def parse_city(city):
     
 def tailor_city(paragraph, city):
     logger.debug(f"Handling city paragraph for '{city}'.")
-    city = parse_city(city)
+    parsed_city = parse_city(city)
     
     while True:
-        if not get_user_confirmation(f"Is this city okay? '{city}'?"):
+        if not get_user_confirmation(f"Is this city okay? '{parsed_city}'?"):
             while True:
-                city = input("Enter new city: ")
-                if not line_fit(city, city_length_limit, 'arial', 10):
-                    city = input(f"'{city}' city is too long. Enter shorter city: ")
+                custom_city = input("Enter new city: ")
+                if not line_fit(custom_city, city_length_limit, 'arial', 10):
+                    print(f"'{custom_city}' city is too long. Enter shorter city: ")
+                    continue
+                parsed_city = custom_city
                 break
-        elif not line_fit(city, city_length_limit, 'arial', 10):
-            city = input(f"'{city}' city is too long. Enter shorter city: ")
+        elif not line_fit(parsed_city, city_length_limit, 'arial', 10):
+            print(f"'{parsed_city}' city is too long. Enter shorter city: ")
             continue
         else:
             break
 
-    replace_text_in_paragraph(paragraph, '<City>', city)
-
+    replace_text_in_paragraph(paragraph, '<City>', parsed_city)
+    
 def tailor_achievement(template, selected_bullets):
     logger.debug("Handling achievement paragraphs.")
     bullet_index = 0
@@ -167,7 +170,7 @@ def save_pdf(doc_path, role, company, date):
 def fetch_new_jobs():
     logger.info("Fetching new jobs from the database.")
     criteria = {'$and': [{'tailored': False}, {'general': False}]}
-    fields = ['job_id', 'company', 'role', 'skills']
+    fields = ['job_id', 'company', 'role', 'skills', 'city']
     return get_documents('job_postings', criteria, fields)
 
 def extract_job_details(new_job):
@@ -188,11 +191,19 @@ def build_output_path(filename):
     logger.debug(f"Building output path for filename: {filename}")
     return join('/job_search', filename)
 
-def format_aggregated_data(agg):
+def format_aggregated_data(agg, top_skills):
+    Rank = Enum('Rank', {name: index + 1 for index, name in enumerate(top_skills)})
     logger.debug(f"Formatting aggregated data: {agg}")
     result = defaultdict(lambda: defaultdict(list))
     for entry in agg:
-        skill = entry['_id']['skill']
-        verb = entry['_id']['verb']
-        result[verb][skill] = entry['bullets']
+        skill = entry['skill']
+        if skill in Rank.__members__:
+            skill_rank = getattr(Rank, skill).value
+        else:
+            skill_rank = 0
+        id = entry['_id']
+        verb = entry['verb']
+        quality = entry.get('quality',0)
+        bullet = entry['bullet']
+        result[verb][skill] = {'bullet': bullet, 'quality': quality, 'skill_rank': skill_rank, 'id': id}
     return result
